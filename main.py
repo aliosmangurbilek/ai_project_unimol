@@ -8,36 +8,29 @@ import random
 
 
 class RobotPlanningEnv(gym.Env):
-    """Gym tabanlı robot planlama ortamı."""
     metadata = {"render.modes": ["human"]}
 
     def __init__(self):
         super(RobotPlanningEnv, self).__init__()
 
-        # Ortam boyutları
         self.ekran_genisligi, self.ekran_yuksekligi = 700, 700
 
-        # Gözlem ve eylem alanları
         self.observation_space = spaces.Box(low=0, high=500, shape=(2,), dtype=np.int32)
         self.action_space = spaces.Discrete(4)  # Yukarı, aşağı, sağa, sola
 
-        # Başlangıç pozisyonları
         self.robot_pozisyonu = random.randint(0, 650)
         self.blok_pozisyonu = {"A": [90, 110], "B": [100, 80]}
         self.hedef_pozisyonu = {"A": [300, 300], "B": [400, 300]}
         self.engel_pozisyonlari = [[random.randint(0, 650), random.randint(0, 650)] for _ in range(50)]
 
-        # Robotun taşıdığı blok bilgisi
         self.tasiniyor_mu = None
 
-        # Pygame başlat
         pygame.init()
         self.ekran = pygame.display.set_mode((self.ekran_genisligi, self.ekran_yuksekligi))
         pygame.display.set_caption("Robot Planlama Simülasyonu")
         self.clock = pygame.time.Clock()
 
     def reset(self):
-        """Ortamı sıfırla."""
         self.robot_pozisyonu = [50, 50]
         self.blok_pozisyonu = {"A": [100, 100], "B": [200, 100]}
         self.engel_pozisyonlari = [[random.randint(0, 450), random.randint(0, 450)] for _ in range(5)]
@@ -45,7 +38,6 @@ class RobotPlanningEnv(gym.Env):
         return np.array(self.robot_pozisyonu, dtype=np.int32)
 
     def step(self, action):
-        """Bir adım at ve durumu güncelle."""
         if action == 0:  # Yukarı
             self.robot_pozisyonu[1] -= 10
         elif action == 1:  # Aşağı
@@ -55,11 +47,9 @@ class RobotPlanningEnv(gym.Env):
         elif action == 3:  # Sola
             self.robot_pozisyonu[0] -= 10
 
-        # Sınırları kontrol et
         self.robot_pozisyonu[0] = np.clip(self.robot_pozisyonu[0], 0, self.ekran_genisligi - 10)
         self.robot_pozisyonu[1] = np.clip(self.robot_pozisyonu[1], 0, self.ekran_yuksekligi - 10)
 
-        # Engel çarpışma kontrolü
         for engel in self.engel_pozisyonlari:
             if (self.robot_pozisyonu[0] in range(engel[0], engel[0] + 40) and
                     self.robot_pozisyonu[1] in range(engel[1], engel[1] + 40)):
@@ -67,7 +57,6 @@ class RobotPlanningEnv(gym.Env):
                 done = True
                 return np.array(self.robot_pozisyonu, dtype=np.int32), reward, done, {}
 
-        # Blok taşıma kontrolü
         if self.tasiniyor_mu is None:
             for blok, pozisyon in self.blok_pozisyonu.items():
                 if (self.robot_pozisyonu[0] in range(pozisyon[0], pozisyon[0] + 40) and
@@ -79,14 +68,12 @@ class RobotPlanningEnv(gym.Env):
             if self.blok_pozisyonu[self.tasiniyor_mu] == self.hedef_pozisyonu[self.tasiniyor_mu]:
                 self.tasiniyor_mu = None
 
-        # Hedefe ulaşma kontrolü
         done = all(self.blok_pozisyonu[blok] == self.hedef_pozisyonu[blok] for blok in self.blok_pozisyonu)
         reward = 1 if done else 0
 
         return np.array(self.robot_pozisyonu, dtype=np.int32), reward, done, {}
 
     def render(self, mode="human"):
-        """Ortamı görselleştir."""
         self.ekran.fill((255, 255, 255))
         pygame.draw.circle(self.ekran, (0, 0, 0), self.robot_pozisyonu, 20)
 
@@ -100,11 +87,9 @@ class RobotPlanningEnv(gym.Env):
         self.clock.tick(30)
 
     def close(self):
-        """Ortamı kapat."""
         pygame.quit()
 
     def plan_path(self, start, goal):
-        """Basit bir A* algoritması ile yol planlama."""
 
         def heuristic(a, b):
             return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -149,10 +134,8 @@ class RobotPlanningEnv(gym.Env):
                     f_score[tuple(neighbor)] = tentative_g_score + heuristic(neighbor, goal)
                     heapq.heappush(open_set, (f_score[tuple(neighbor)], neighbor))
 
-        return []  # Eğer yol bulunamazsa
+        return []
 
-
-# Ortamı başlat ve test et
 env = RobotPlanningEnv()
 obs = env.reset()
 
@@ -163,10 +146,8 @@ for blok, hedef in env.hedef_pozisyonu.items():
         env.render()
         time.sleep(0.1)
 
-    # Blok alınıyor
     env.tasiniyor_mu = blok
 
-    # Blok hedefe taşınıyor
     path = env.plan_path(env.robot_pozisyonu, hedef)
     for step in path:
         env.robot_pozisyonu = step
