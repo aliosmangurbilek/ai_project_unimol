@@ -17,7 +17,7 @@ class RobotPlanningEnv(gym.Env):
         self.ekran_genisligi = ekran_genisligi
         self.ekran_yuksekligi = ekran_yuksekligi
         self.engel_sayisi = engel_sayisi
-        self.baslangic_konumu = list(baslangic_konumu)
+        self.baslangic_konumu = [round(baslangic_konumu[0] / 10) * 10, round(baslangic_konumu[1] / 10) * 10]
         self.blok_pozisyonlari = blok_pozisyonlari or {"A": [100, 100], "B": [200, 100]}
         self.hedef_pozisyonu = hedef_pozisyonlari or {"A": [650, 300], "B": [600, 300]}
 
@@ -46,55 +46,58 @@ class RobotPlanningEnv(gym.Env):
         return obstacles
 
     def reset(self):
-        self.robot_pozisyonu = self.baslangic_konumu[:]
+        self.robot_pozisyonu = [round(self.baslangic_konumu[0] / 50) * 50, round(self.baslangic_konumu[1] / 50) * 50]
         self.blok_pozisyonu = self.blok_pozisyonlari
         self.engel_pozisyonlari = self.generate_obstacles()
         self.tasiniyor_mu = None
         self.tasinan_bloklar = set()
+        time.sleep(0.1)  # Add a delay of 0.1 seconds
         return np.array(self.robot_pozisyonu, dtype=np.int32)
 
     def step(self, action):
-        # Mevcut pozisyonun bir kopyasını oluştur
         yeni_pozisyon = self.robot_pozisyonu[:]
 
-        # Hareket yönünü belirle
         if action == 0:  # Yukarı
-            yeni_pozisyon[1] -= 10
+            yeni_pozisyon[1] -= 50
         elif action == 1:  # Aşağı
-            yeni_pozisyon[1] += 10
+            yeni_pozisyon[1] += 50
         elif action == 2:  # Sağa
-            yeni_pozisyon[0] += 10
+            yeni_pozisyon[0] += 50
         elif action == 3:  # Sola
-            yeni_pozisyon[0] -= 10
+            yeni_pozisyon[0] -= 50
 
-        # Pozisyonu sınırla
-        yeni_pozisyon[0] = np.clip(yeni_pozisyon[0], 0, self.ekran_genisligi - 10)
-        yeni_pozisyon[1] = np.clip(yeni_pozisyon[1], 0, self.ekran_yuksekligi - 10)
+        yeni_pozisyon[0] = np.clip(yeni_pozisyon[0], 0, self.ekran_genisligi - 50)
+        yeni_pozisyon[1] = np.clip(yeni_pozisyon[1], 0, self.ekran_yuksekligi - 50)
 
-        # Engellerle çarpışmayı kontrol et
         for engel in self.engel_pozisyonlari:
             if (yeni_pozisyon[0] in range(engel[0], engel[0] + 50) and
                     yeni_pozisyon[1] in range(engel[1], engel[1] + 50)):
-                return np.array(self.robot_pozisyonu, dtype=np.int32), -1, False, {}  # Hareket iptal
+                return np.array(self.robot_pozisyonu, dtype=np.int32), -1, False, {}
 
-        # Yeni pozisyonu uygula
         self.robot_pozisyonu = yeni_pozisyon
 
         if self.tasiniyor_mu is None:
             for blok, pozisyon in self.blok_pozisyonu.items():
+                blok_merkez_x = pozisyon[0] + 25
+                blok_merkez_y = pozisyon[1] + 25
                 if blok not in self.tasinan_bloklar and \
-                        (self.robot_pozisyonu[0] in range(pozisyon[0], pozisyon[0] + 50) and
-                         self.robot_pozisyonu[1] in range(pozisyon[1], pozisyon[1] + 50)):
+                        (abs(self.robot_pozisyonu[0] - blok_merkez_x) <= 20 and
+                         abs(self.robot_pozisyonu[1] - blok_merkez_y) <= 20):
                     self.tasiniyor_mu = blok
                     break
         elif self.tasiniyor_mu:
-            self.blok_pozisyonu[self.tasiniyor_mu] = self.robot_pozisyonu[:]
+            self.blok_pozisyonu[self.tasiniyor_mu] = [
+                self.robot_pozisyonu[0] - 25,
+                self.robot_pozisyonu[1] - 25
+            ]
             if self.blok_pozisyonu[self.tasiniyor_mu] == self.hedef_pozisyonu[self.tasiniyor_mu]:
                 self.tasinan_bloklar.add(self.tasiniyor_mu)
                 self.tasiniyor_mu = None
 
         done = all(self.blok_pozisyonu[blok] == self.hedef_pozisyonu[blok] for blok in self.blok_pozisyonu)
         reward = 1 if done else 0
+
+        time.sleep(0.1)  # Add a delay of 0.1 seconds
 
         return np.array(self.robot_pozisyonu, dtype=np.int32), reward, done, {}
 
@@ -107,7 +110,7 @@ class RobotPlanningEnv(gym.Env):
         for y in range(0, self.ekran_yuksekligi, 50):
             pygame.draw.line(self.ekran, (200, 200, 200), (0, y), (self.ekran_genisligi, y))
 
-        pygame.draw.circle(self.ekran, (0, 0, 0), self.robot_pozisyonu, 20)
+        pygame.draw.circle(self.ekran, (0, 0, 0), self.robot_pozisyonu, 25)
 
         for blok, pozisyon in self.blok_pozisyonu.items():
             pygame.draw.rect(self.ekran, (255, 0, 0), (*pozisyon, 50, 50))
@@ -127,12 +130,12 @@ class RobotPlanningEnv(gym.Env):
 
         pygame.display.flip()
         self.clock.tick(30)
+        time.sleep(0.1)  # Add a delay of 0.1 seconds
 
     def close(self):
         pygame.quit()
 
     def plan_path(self, start, goal):
-
         def heuristic(a, b):
             return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
@@ -155,7 +158,7 @@ class RobotPlanningEnv(gym.Env):
 
             neighbors = [
                 [current[0] + dx, current[1] + dy]
-                for dx, dy in [(-10, 0), (10, 0), (0, -10), (0, 10)]
+                for dx, dy in [(-50, 0), (50, 0), (0, -50), (0, 50)]
             ]
 
             for neighbor in neighbors:
@@ -175,9 +178,9 @@ class RobotPlanningEnv(gym.Env):
                     g_score[tuple(neighbor)] = tentative_g_score
                     f_score[tuple(neighbor)] = tentative_g_score + heuristic(neighbor, goal)
                     heapq.heappush(open_set, (f_score[tuple(neighbor)], neighbor))
+        time.sleep(0.1)  # Add a delay of 0.1 seconds
 
         return []
-
 class RobotSimulationUI(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
@@ -276,7 +279,7 @@ class RobotSimulationUI(QtWidgets.QWidget):
         button_layout = QtWidgets.QHBoxLayout()
         self.start_button = QtWidgets.QPushButton("Simülasyonu Başlat")
         self.start_button.clicked.connect(self.start_simulation)
-        self.stop_button = QtWidgets.QPushButton("Simülasyonu Durdur")
+        self.stop_button = QtWidgets.QPushButton("Simülasyonu Yeniden Başlat")
         self.stop_button.clicked.connect(self.stop_simulation)
         self.stop_button.setEnabled(False)
         button_layout.addWidget(self.start_button)
@@ -354,3 +357,5 @@ if __name__ == "__main__":
     window = RobotSimulationUI()
     window.show()
     sys.exit(app.exec_())
+
+
