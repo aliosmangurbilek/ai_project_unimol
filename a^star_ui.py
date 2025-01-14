@@ -26,31 +26,20 @@ class RobotPlanningEnv(gym.Env):
         self.robot_pozisyonu = self.baslangic_konumu[:]
         self.blok_pozisyonu = self.blok_pozisyonlari
         self.hedef_pozisyonu = {"A": [650, 300], "B": [600, 300]}
-        self.engel_pozisyonlari = self.generate_obstacles()
+        self.engel_pozisyonlari = [[random.randint(0, 650), random.randint(0, 650)] for _ in range(self.engel_sayisi)]
 
         self.tasiniyor_mu = None
-        self.tasinan_bloklar = set()
 
         pygame.init()
         self.ekran = pygame.display.set_mode((self.ekran_genisligi, self.ekran_yuksekligi))
         pygame.display.set_caption("Robot Planlama Simülasyonu")
         self.clock = pygame.time.Clock()
 
-    def generate_obstacles(self):
-        # Engelleri yalnızca grid çizgilerine hizalayarak oluştur
-        obstacles = []
-        for _ in range(self.engel_sayisi):
-            x = random.randint(0, (self.ekran_genisligi // 50) - 1) * 50
-            y = random.randint(0, (self.ekran_yuksekligi // 50) - 1) * 50
-            obstacles.append([x, y])
-        return obstacles
-
     def reset(self):
         self.robot_pozisyonu = self.baslangic_konumu[:]
         self.blok_pozisyonu = self.blok_pozisyonlari
-        self.engel_pozisyonlari = self.generate_obstacles()
+        self.engel_pozisyonlari = [[random.randint(0, 450), random.randint(0, 450)] for _ in range(self.engel_sayisi)]
         self.tasiniyor_mu = None
-        self.tasinan_bloklar = set()
         return np.array(self.robot_pozisyonu, dtype=np.int32)
 
     def step(self, action):
@@ -75,15 +64,13 @@ class RobotPlanningEnv(gym.Env):
 
         if self.tasiniyor_mu is None:
             for blok, pozisyon in self.blok_pozisyonu.items():
-                if blok not in self.tasinan_bloklar and \
-                        (self.robot_pozisyonu[0] in range(pozisyon[0], pozisyon[0] + 40) and
-                         self.robot_pozisyonu[1] in range(pozisyon[1], pozisyon[1] + 40)):
+                if (self.robot_pozisyonu[0] in range(pozisyon[0], pozisyon[0] + 40) and
+                        self.robot_pozisyonu[1] in range(pozisyon[1], pozisyon[1] + 40)):
                     self.tasiniyor_mu = blok
                     break
         elif self.tasiniyor_mu:
             self.blok_pozisyonu[self.tasiniyor_mu] = self.robot_pozisyonu[:]
             if self.blok_pozisyonu[self.tasiniyor_mu] == self.hedef_pozisyonu[self.tasiniyor_mu]:
-                self.tasinan_bloklar.add(self.tasiniyor_mu)
                 self.tasiniyor_mu = None
 
         done = all(self.blok_pozisyonu[blok] == self.hedef_pozisyonu[blok] for blok in self.blok_pozisyonu)
@@ -107,14 +94,6 @@ class RobotPlanningEnv(gym.Env):
 
         for engel in self.engel_pozisyonlari:
             pygame.draw.rect(self.ekran, (0, 0, 255), (*engel, 40, 40))
-
-        # Draw goal positions as triangles
-        for blok, hedef in self.hedef_pozisyonu.items():
-            pygame.draw.polygon(
-                self.ekran,
-                (0, 255, 0),
-                [(hedef[0], hedef[1]), (hedef[0] + 20, hedef[1] + 40), (hedef[0] - 20, hedef[1] + 40)]
-            )
 
         pygame.display.flip()
         self.clock.tick(30)
